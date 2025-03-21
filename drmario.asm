@@ -57,16 +57,13 @@ direction: .byte
     # $a1 = y coordinates in functions
     # $a2 = color 0 in functions
     # $a3 = color 1 in functions
+    # $s0 = counter
 main:
     # Initialize the game
     jal draw_background
     jal draw_bottle
+    li $s0, 0
     jal generate_pill
-    li $a0, 3
-    li $a1, 0
-    jal update_coordinates
-    jal draw_pill
-    j game_loop
     
 draw_background: # Draws the background
   lw $t0, ADDR_DSPL # t0 = display address
@@ -201,7 +198,7 @@ draw_bottle:
   jr $ra
 
 draw_pill: # Draws a horizontal pill with (color0, color1) = ($a2, $a3) at coordinates ($a0, $a1). Color0 on the left and Color1 on the right.
-  # x goes from 0 to 6, y goes from 0 to 15.
+  # x goes from 0 to 7, y goes from 0 to 15.
   lw $t0, ADDR_BOTTLE
   li $t9, 8
   mult $a0, $t9
@@ -230,6 +227,11 @@ draw_pill: # Draws a horizontal pill with (color0, color1) = ($a2, $a3) at coord
   jr $ra
 
 generate_pill: # Generates pill and store (color0, color1) in ($a2, $a3)
+  lw $t0 ADDR_BOTTLE
+  lw $t9 24($t0)
+  bne $t9 0 exit
+  lw $t9 32($t0)
+  bne $t9 0 exit
   li $v0, 42
   li $a0, 0
   li $a1, 3
@@ -256,7 +258,12 @@ generate_pill: # Generates pill and store (color0, color1) in ($a2, $a3)
   blue1:
     lw $a3, blue
   generate_pill_done:
-  jr $ra
+  sb $zero orientation
+  li $a0, 3
+  li $a1, 0
+  jal update_coordinates
+  jal draw_pill
+  j game_loop
 
 move_left:
   jal load_clear
@@ -342,27 +349,89 @@ rotate:
 check_collision:
   lb $t9 orientation
   lb $t8 direction
+  lw $t0 ADDR_BOTTLE
   beq $t8, 0, left_collision
   beq $t8, 1, right_collision
   beq $t8, 3, rotate_collision
-  add $t9, $t9, $a1
-  beq $t9, 15, game_loop
+  add $t7, $t9, $a1
+  li $t8, 512
+  mult $t7, $t8
+  mflo $t8
+  add $t0 $t0 $t8
+  li $t8 8
+  mult $t8, $a0
+  mflo $t7
+  add $t0 $t0 $t7
+  lw $t7 512($t0)
+  bne $t7, 0, generate_pill
+  seq $t9 $t9 0
+  mult $t8 $t9
+  mflo $t9
+  add $t0 $t0 $t9
+  lw $t9 512($t0)
+  bne $t9, 0, generate_pill
   jr $ra
   left_collision:
-  beq $a0, 0, game_loop
+  li $t8, 512
+  mult $a1, $t8
+  mflo $t8
+  add $t0 $t0 $t8
+  li $t8 8
+  mult $t8, $a0
+  mflo $t8
+  add $t0 $t0 $t8
+  lw $t8 -4($t0)
+  bne $t8, 0, game_loop
+  li $t8, 512
+  mult $t8 $t9
+  mflo $t9
+  add $t0 $t0 $t9
+  lw $t9 -4($t0)
+  bne $t9, 0, game_loop
   jr $ra
   right_collision:
-  sub $t9, $a0, $t9
-  beq $t9, 6, game_loop
+  li $t8, 512
+  mult $a1, $t8
+  mflo $t8
+  add $t0 $t0 $t8
+  li $t8 8
+  sub $t7, $a0, $t9
+  mult $t8, $t7
+  mflo $t8
+  add $t0 $t0 $t8
+  lw $t8 16($t0)
+  bne $t8, 0, game_loop
+  li $t8, 512
+  mult $t8 $t9
+  mflo $t9
+  add $t0 $t0 $t9
+  lw $t9 16($t0)
+  bne $t9, 0, game_loop
   jr $ra
   rotate_collision:
-  seq $t8, $a0, 7
-  and $t8, $t9, $t8
+  li $t8, 512
+  mult $a1, $t8
+  mflo $t8
+  add $t0 $t0 $t8
+  li $t8 8
+  mult $t8, $a0
+  mflo $t8
+  add $t0 $t0 $t8
+  lw $t8 520($t0)
+  sgt $t7, $t8, 0
+  and $t7, $t9, $t7
+  lw $t8 508($t0)
+  sgt $t8, $t8, 0
+  and $t8, $t7, $t8
+  beq $t8, 1, game_loop
+  #lw $t8 508($t0)
+  seq $t8, $t8, 0
+  and $t7, $t8, $t7
+  sub $t8, $a0, $t7
   la $t7, pill_xy
-  sub $t8, $a0, $t8
   sw $t8, 0($t7)
   jr $ra
-  
+
 update_coordinates:
   la $t9, pill_xy
   sw $a0, 0($t9)
@@ -376,6 +445,14 @@ game_loop:
   lw $t1, ADDR_KBRD
   lw $t2, 0($t1)
   beq $t2, 1, keyboard_input
+  li $v0, 32
+  li $a0, 1
+  syscall
+  addi $s0 $s0 1
+  beq $s0, 50, move_down
+  slti $t9 $s0, 50
+  mult $s0, $t9
+  mflo $s0
   j game_loop
   keyboard_input: # WASD: 0x77, 0x61, 0x73, 0x64
     lw $t2, 4($t1)
@@ -384,8 +461,7 @@ game_loop:
     beq $t2, 0x64, move_right
     beq $t2, 0x73, move_down
     beq $t2, 0x77, rotate
-    j game_loop
-    
+  
   j game_loop
     # 1a. Check if key has been pressed
     # 1b. Check which key has been pressed

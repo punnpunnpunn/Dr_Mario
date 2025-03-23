@@ -28,6 +28,62 @@ ADDR_BOTTLE:
 ADDR_KBRD:
     .word 0xffff0000
 
+.macro beqal(%x %y %z)
+    beq %x %y beqal1
+    j beqal2
+    beqal1:
+      jal %z
+    beqal2:
+  .end_macro
+
+.macro bgtal(%x %y %z)
+  bgt %x %y bgtal1
+  j bgtal2
+  bgtal1:
+    jal %z
+  bgtal2:
+  .end_macro
+
+.macro generate_color(%n)
+  li $v0 42
+  li $a0, 0
+  li $a1, 3
+  syscall
+  beq $a0 0 match_red
+  beq $a0 1 match_blue
+  lw %n yellow
+  j end_match
+  match_red:
+  lw %n red
+  j end_match
+  match_blue:
+  lw %n blue
+  end_match:
+  .end_macro
+
+.macro push()
+  sub $sp, $sp,4
+  sw  $ra, 0($sp)	# push %reg
+  .end_macro
+  
+.macro pop()
+  lw  $ra, 0($sp)	# pop %reg
+  add $sp, $sp,4
+  .end_macro
+
+.macro jal2(%f)
+  push()
+  jal %f
+  pop()
+  .end_macro
+
+.macro repeat(%j %n)
+  li $t3, 0
+  rep:
+  jal %j
+  addi $t3 $t3 1
+  bne $t3 %n rep
+  .end_macro
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -39,6 +95,7 @@ black: .word 0x161616
 white: .word 0xc0c0c0
 light_blue: .word 0x50c878
 true_black: .word 0x000000
+cream: .word 0xede8d0
 pill_xy: .space 8 # The (x,y) coordinates of the current pill being dropped. x is in [0, 7], y is in [0, 15]
 pill_color: .space 8 # The current pill color (color0, color1)
 orientation: .byte 0 # 0 if the current pill is horizontally oriented. 1 if vertically oriented.
@@ -53,6 +110,7 @@ direction: .byte
     # For simplicity, I am allocating some variables for specific uses. 
     # $t0 = the memory address of the display
     # $t1 = the memory address of the keyboard
+    # $t3 = loop condition for repeat
     # $a0 = x coordinates in functions
     # $a1 = y coordinates in functions
     # $a2 = color 0 in functions
@@ -63,7 +121,8 @@ main:
     jal draw_background
     jal draw_bottle
     li $s0, 0
-    jal generate_pill
+    repeat(generate_virus, 4)
+    j generate_pill
     
 draw_background: # Draws the background
   lw $t0, ADDR_DSPL # t0 = display address
@@ -197,8 +256,7 @@ draw_bottle:
   sw $a0, 4488($t0)
   jr $ra
 
-draw_pill: # Draws a horizontal pill with (color0, color1) = ($a2, $a3) at coordinates ($a0, $a1). Color0 on the left and Color1 on the right.
-  # x goes from 0 to 7, y goes from 0 to 15.
+set_t0: # Set $t0 to the coordinates on the bitmap to draw
   lw $t0, ADDR_BOTTLE
   li $t9, 8
   mult $a0, $t9
@@ -208,6 +266,11 @@ draw_pill: # Draws a horizontal pill with (color0, color1) = ($a2, $a3) at coord
   mult $a1, $t9
   mflo $t8
   add $t0, $t0, $t8 # Move pill to correct y
+  jr $ra
+
+draw_pill: # Draws a pill with (color0, color1) = ($a2, $a3) at coordinates ($a0, $a1). Color0 on the left/top and Color1 on the right/bottom.
+  # x goes from 0 to 7, y goes from 0 to 15.
+  jal2(set_t0)
   sw $a2 0($t0) # Draw left pill
   sw $a2 4($t0)
   sw $a2 256($t0)
@@ -226,44 +289,52 @@ draw_pill: # Draws a horizontal pill with (color0, color1) = ($a2, $a3) at coord
   sw $a3 772($t0)
   jr $ra
 
+draw_virus: # Draws a pill with color = $a2 at coordinates ($a0, $a1)
+  jal2(set_t0)
+  lw $t9 cream
+  sw $a2 0($t0)
+  sw $t9 4($t0)
+  sw $a2 260($t0)
+  sw $t9 256($t0)
+  jr $ra
+
+clear_cell: # Clears a cell with coordinates ($a0, $a1)
+  jal2(set_t0)
+  lw $a2, true_black
+  sw $a2 0($t0) # Clear cell
+  sw $a2 4($t0)
+  sw $a2 256($t0)
+  sw $a2 260($t0)
+  jr $ra
+
 generate_pill: # Generates pill and store (color0, color1) in ($a2, $a3)
   lw $t0 ADDR_BOTTLE
   lw $t9 24($t0)
   bne $t9 0 exit
   lw $t9 32($t0)
   bne $t9 0 exit
-  li $v0, 42
-  li $a0, 0
-  li $a1, 3
-  syscall
-  beq $a0, 0, red0
-  beq $a0, 1, blue0
-  lw $a2, yellow
-  j second_pill
-  red0:
-    lw $a2, red
-    j second_pill
-  blue0:
-    lw $a2, blue
-  second_pill:
-  li $a0, 0
-  syscall
-  beq $a0, 0, red1
-  beq $a0, 1, blue1
-  lw $a3, yellow
-  j generate_pill_done
-  red1:
-    lw $a3, red
-    j generate_pill_done
-  blue1:
-    lw $a3, blue
-  generate_pill_done:
+  generate_color($a2)
+  generate_color($a3)
   sb $zero orientation
   li $a0, 3
   li $a1, 0
   jal update_coordinates
   jal draw_pill
   j game_loop
+
+generate_virus:
+  generate_color($a2)
+  li $v0, 42
+  li $a0, 0
+  li $a1, 8
+  syscall
+  addi $t9, $a0, 0
+  li $a0, 0
+  syscall
+  addi $a1, $a0, 8
+  addi $a0, $t9, 0
+  jal2(draw_virus)
+  jr $ra
 
 move_left:
   jal load_clear
@@ -363,13 +434,13 @@ check_collision:
   mflo $t7
   add $t0 $t0 $t7
   lw $t7 512($t0)
-  bne $t7, 0, generate_pill
+  bne $t7, 0, check_combo #generate_pill
   seq $t9 $t9 0
   mult $t8 $t9
   mflo $t9
   add $t0 $t0 $t9
   lw $t9 512($t0)
-  bne $t9, 0, generate_pill
+  bne $t9, 0, check_combo #generate_pill
   jr $ra
   left_collision:
   li $t8, 512
@@ -380,13 +451,13 @@ check_collision:
   mult $t8, $a0
   mflo $t8
   add $t0 $t0 $t8
-  lw $t8 -4($t0)
+  lw $t8 -8($t0)
   bne $t8, 0, game_loop
   li $t8, 512
   mult $t8 $t9
   mflo $t9
   add $t0 $t0 $t9
-  lw $t9 -4($t0)
+  lw $t9 -8($t0)
   bne $t9, 0, game_loop
   jr $ra
   right_collision:
@@ -420,16 +491,96 @@ check_collision:
   lw $t8 520($t0)
   sgt $t7, $t8, 0
   and $t7, $t9, $t7
-  lw $t8 508($t0)
+  lw $t8 504($t0)
   sgt $t8, $t8, 0
   and $t8, $t7, $t8
   beq $t8, 1, game_loop
-  #lw $t8 508($t0)
   seq $t8, $t8, 0
   and $t7, $t8, $t7
   sub $t8, $a0, $t7
   la $t7, pill_xy
   sw $t8, 0($t7)
+  jr $ra
+
+check_combo:
+  lw $t0 ADDR_BOTTLE
+  li $a1 -1
+  addi $t0, $t0, -448
+  combo_x_loop:
+  lw $t1 white # Color
+  li $t2 0 # Color counter
+  li $a0 0 # Inner loop counter
+  addi $a1, $a1, 1
+  addi $t0, $t0, 448
+  combo_x:
+    lw $t9 0($t0)
+    seq $t1, $t9, $t1
+    add $t2, $t2, $t1
+    mult $t2, $t1
+    mflo $t2
+    sne $t8, $t9, 0 #
+    mult $t8, $t2 #
+    mflo $t2 #
+    add $t1, $t9, $zero
+    beqal($t2, 3, clear_row)
+    bgtal($t2, 3, clear_cell)
+    addi $a0, $a0, 1
+    addi $t0, $t0, 8
+    beq $a1, 16, check_combo_y #generate_pill
+    beq $a0, 8, combo_x_loop
+    j combo_x
+  check_combo_y:
+  lw $t0 ADDR_BOTTLE
+  li $a0 -1
+  addi $t0, $t0, 8184
+  combo_y_loop:
+  lw $t1 white # Color
+  li $t2 0 # Color counter
+  li $a1 0 # Inner loop counter
+  addi $a0, $a0, 1
+  addi $t0, $t0, -8184
+  combo_y:
+    lw $t9 0($t0)
+    seq $t1, $t9, $t1
+    add $t2, $t2, $t1
+    mult $t2, $t1
+    mflo $t2
+    sne $t8, $t9, 0 #
+    mult $t8, $t2 #
+    mflo $t2 #
+    add $t1, $t9, $zero
+    beqal($t2, 3, clear_col)
+    bgtal($t2, 3, clear_cell)
+    addi $a1, $a1, 1
+    addi $t0, $t0, 512
+    beq $a0, 8, generate_pill
+    beq $a1, 16, combo_y_loop
+    j combo_y
+  
+clear_row:
+  push()
+  addi $a0 $a0 -3
+  jal clear_cell
+  addi $a0 $a0 1
+  jal clear_cell
+  addi $a0 $a0 1
+  jal clear_cell
+  addi $a0 $a0 1
+  jal clear_cell
+  pop()
+  jr $ra
+
+clear_col:
+  push()
+  addi $a1 $a1 -3
+  jal clear_cell
+  addi $a1 $a1 1
+  jal clear_cell
+  addi $a1 $a1 1
+  jal clear_cell
+  addi $a1 $a1 1
+  jal clear_cell
+  pop()
   jr $ra
 
 update_coordinates:
@@ -473,6 +624,5 @@ game_loop:
     # j game_loop
 
 exit:
-  lw $t2, 4($t1)
   li $v0, 10
   syscall

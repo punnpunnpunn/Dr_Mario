@@ -350,10 +350,10 @@ drop_cell:
   addi $t3 $t3 512
   beq $t9 0 drop_to
   jal2(draw_cell)
-  beq $a1 $t7 drop_end #
+  beq $a1 $t7 drop_end
   addi $a1 $t7 0
   jal2(clear_cell)
-  drop_end: #
+  drop_end:
   jr $ra
 
 generate_pill: # Generates pill and store (color0, color1) in ($a2, $a3)
@@ -641,6 +641,15 @@ update_coordinates:
   sw $a3, 4($t9)
   jr $ra
 
+pause:
+  lw $t1, ADDR_KBRD
+  lw $t2, 0($t1)
+  beq $t2, 1, unpause
+  j pause
+  unpause:
+  lw $t2, 4($t1)
+  beq $t2, 0x70, game_loop
+
 game_loop:
   lw $t1, ADDR_KBRD
   lw $t2, 0($t1)
@@ -657,6 +666,7 @@ game_loop:
   keyboard_input: # WASD: 0x77, 0x61, 0x73, 0x64
     lw $t2, 4($t1)
     beq $t2, 0x71, exit
+    beq $t2, 0x70, pause
     beq $t2, 0x61, move_left
     beq $t2, 0x64, move_right
     beq $t2, 0x73, move_down

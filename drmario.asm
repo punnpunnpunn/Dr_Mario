@@ -28,6 +28,8 @@ ADDR_BOTTLE:
 ADDR_KBRD:
     .word 0xffff0000
 
+ADDR_PAUSE: .word 0x100083E4
+
 .macro beqal(%x %y %z)
     beq %x %y beqal1
     j beqal2
@@ -96,6 +98,7 @@ black: .word 0x161616
 white: .word 0xc0c0c0
 light_blue: .word 0x50c878
 true_black: .word 0x000000
+true_white: .word 0xffffff
 cream: .word 0xede8d0
 pill_xy: .space 8 # The (x,y) coordinates of the current pill being dropped. x is in [0, 7], y is in [0, 15]
 pill_color: .space 8 # The current pill color (color0, color1)
@@ -121,10 +124,68 @@ main:
     # Initialize the game
     jal draw_background
     jal draw_bottle
-    li $s0, 0
-    repeat(generate_virus, 4)
+    jal choose_level
+    li $t2 2
+    jal generate_viruses
+    li $s0 0
     j generate_pill
-    
+
+choose_level:
+  lw $t0, ADDR_KBRD               # $t0 = base address for keyboard
+  lw $a0, 0($t0)                  # Load first word from keyboard
+  beq $a0, 1, level_input         # If first word 1, key is pressed
+  j choose_level
+  level_input:                 # A key is pressed
+    lw $a0, 4($t0)                # Load second word from keyboard
+    beq $a0 0x31 easy
+    beq $a0 0x32 medium
+    beq $a0 0x33 hard
+    j choose_level
+  easy:
+    li $s1 50
+    jr $ra
+  medium:
+    li $s1 25
+    jr $ra
+  hard:
+    li $s1 10
+    jr $ra
+  
+generate_viruses: # Generate $t2 virus of each color
+  li $t3 0
+  generate_virus_loop:
+  lw $a2 red
+  jal2(generate_virus)
+  lw $a2 blue
+  jal2(generate_virus)
+  lw $a2 yellow
+  jal2(generate_virus)
+  addi $t3 $t3 1
+  bne $t3 $t2 generate_virus_loop
+  jr $ra
+
+draw_rect: # Draws rectangle starting at address $t0 with size (xshift, yshift) = ($a0, $a1) and color $a2
+  li $t8 -1
+  li $t9 0
+  addi $t0 $t0 -256
+  draw_loop:
+  addi $t8 $t8 1
+  beq $t8 $a1 draw_end
+  li $t7 4
+  mult $t7 $t9
+  mflo $t9
+  sub $t0 $t0 $t9
+  addi $t0 $t0 256
+  li $t9 0
+  draw_line:
+    sw $a2 0($t0)
+    addi $t0 $t0 4
+    addi $t9 $t9 1
+    beq $t9 $a0 draw_loop
+    j draw_line
+  draw_end:
+  jr $ra
+
 draw_background: # Draws the background
   lw $t0, ADDR_DSPL # t0 = display address
   li $a0, 0 # a0 be the outer loop condition
@@ -164,97 +225,46 @@ draw_background: # Draws the background
     row_done:
     addi $t0, $t0, 256
     addi $a0, $a0, 1
-    bge $a0, 32, draw_done
+    bge $a0, 32, tiling_done
   j draw_col
-  draw_done:
+  tiling_done:
+  lw $t0 ADDR_PAUSE
+  addi $t0 $t0 -260
+  li $a0 5
+  li $a1 5
+  lw $a2 true_white
+  jal2(draw_rect)
+  lw $t0 ADDR_PAUSE
+  li $a0 3
+  li $a1 3
+  lw $a2 true_black
+  jal2(draw_rect)
   jr $ra
 
 draw_bottle:
-  lw $t0, ADDR_DSPL
-  lw $a0, white
-  lw $a2, light_blue
-  li $a1, 0 # loop condition
-  add $t0, $t0, 4192 # Start drawing at 12x and 8y which is = 12 * 4 * 2 + 256 * 8 * 2
-  draw_left:
-    sw $a2, 0($t0)
-    addi $t0, $t0, 4
-    sw $a0, 0($t0)
-    addi $t0, $t0, 252
-    sw $a2, 0($t0)
-    addi $t0, $t0, 4
-    sw $a0, 0($t0)
-    addi $t0, $t0, 252
-    addi $a1, $a1, 1
-    bge $a1, 17, draw_bottom
-    j draw_left
-  draw_bottom:
-    sw $a0, 0($t0)
-    addi $t0, $t0, 4
-    sw $a0, 0($t0)
-    addi $t0, $t0, 252
-    sw $a2, 0($t0)
-    addi $t0, $t0, 4
-    sw $a2, 0($t0)
-    addi $t0, $t0, -252
-    addi $a1, $a1, 1
-    bge $a1, 26, draw_right
-    j draw_bottom
-  draw_right:
-    sw $a0, 0($t0)
-    addi $t0, $t0, 4
-    sw $a2, 0($t0)
-    addi $t0, $t0, 252
-    sw $a0, 0($t0)
-    addi $t0, $t0, 4
-    sw $a2, 0($t0)
-    addi $t0, $t0, -772
-    addi $a1, $a1, -1
-    ble $a1, 9, draw_top
-    j draw_right
-  draw_top:
-    sw $a2, 0($t0)
-    addi $t0, $t0, 4
-    sw $a2, 0($t0)
-    addi $t0, $t0, 252
-    sw $a0, 0($t0)
-    addi $t0, $t0, 4
-    sw $a0, 0($t0)
-    addi $t0, $t0, -268
-    addi $a1, $a1, -1
-    ble $a1, 0, draw_back
-    j draw_top
-  draw_back:
-    lw $t0, ADDR_DSPL
-    addi $t0, $t0, 4712
-    lw $a0, true_black
-    li $a1, 0
-    li $a3, 0
-    back_x:
-    sw $a0, 0($t0)
-    addi $t0, $t0, 4
-    addi $a1, $a1, 1
-    bge $a1, 16, back_y
-    j back_x
-    back_y:
-    addi $t0, $t0, 192
-    li $a1, 0
-    addi $a3, $a3, 1
-    bge $a3, 32, bottle_done
-    j back_x
-  bottle_done:
-  lw $t0, ADDR_DSPL
-  sw $a2, 4196($t0) # fill in the holes
-  sw $a2, 12896($t0)
-  sw $a2, 13224($t0)
-  sw $a2, 4524($t0)
-  sw $a0, 4224($t0)
-  sw $a0, 4228($t0)
-  sw $a0, 4480($t0)
-  sw $a0, 4484($t0)
-  sw $a0, 4232($t0)
-  sw $a0, 4236($t0)
-  sw $a0, 4492($t0)
-  sw $a0, 4488($t0)
+  lw $t0, ADDR_BOTTLE
+  addi $t0 $t0 -520
+  li $a0 20
+  li $a1 36
+  lw $a2 light_blue
+  jal2(draw_rect)
+  lw $t0, ADDR_BOTTLE
+  addi $t0 $t0 -260
+  li $a0 18
+  li $a1 34
+  lw $a2 white
+  jal2(draw_rect)
+  lw $t0, ADDR_BOTTLE
+  li $a0 16
+  li $a1 32
+  lw $a2 true_black
+  jal2(draw_rect)
+  lw $t0, ADDR_BOTTLE
+  addi $t0 $t0 -488
+  li $a0 4
+  li $a1 2
+  lw $a2 true_black
+  jal2(draw_rect)
   jr $ra
 
 set_t0: # Set $t0 to the coordinates on the bitmap to draw
@@ -372,7 +382,7 @@ generate_pill: # Generates pill and store (color0, color1) in ($a2, $a3)
   j game_loop
 
 generate_virus:
-  generate_color($a2)
+  #generate_color($a2)
   li $v0, 42
   li $a0, 0
   li $a1, 8
@@ -642,11 +652,21 @@ update_coordinates:
   jr $ra
 
 pause:
+  lw $t0, ADDR_PAUSE
+  addi $t0 $t0 4
+  li $a0 1
+  li $a1 3
+  lw $a2, true_white
+  jal2(draw_rect)
   lw $t1, ADDR_KBRD
   lw $t2, 0($t1)
   beq $t2, 1, unpause
   j pause
   unpause:
+  lw $t0, ADDR_PAUSE
+  addi $t0 $t0 4
+  lw $a2 true_black
+  jal2(draw_rect)
   lw $t2, 4($t1)
   beq $t2, 0x70, game_loop
 
@@ -658,8 +678,8 @@ game_loop:
   li $a0, 1
   syscall
   addi $s0 $s0 1
-  beq $s0, 50, move_down
-  slti $t9 $s0, 50
+  beq $s0, $s1, move_down
+  slt $t9 $s0, $s1
   mult $s0, $t9
   mflo $s0
   j game_loop
@@ -683,5 +703,6 @@ game_loop:
     # j game_loop
 
 exit:
+  jal draw_bottle
   li $v0, 10
   syscall

@@ -325,12 +325,12 @@ clear_cell: # Clears a cell with coordinates ($a0, $a1)
   jr $ra
 
 drop_cell:
-  addi $t2 $t0 0
+  addi $t3 $t0 0
   addi $t7 $a1 -1
   addi $a1 $a1 -1
   drop_to:
-  addi $t2 $t2 512
-  lw $t9 512($t2)
+  addi $t3 $t3 512
+  lw $t9 512($t3)
   addi $a1 $a1 1
   beq $t9 0 drop_to
   jal2(draw_cell)

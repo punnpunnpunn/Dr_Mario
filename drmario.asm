@@ -84,6 +84,7 @@ ADDR_KBRD:
   addi $t3 $t3 1
   bne $t3 %n rep
   .end_macro
+
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -298,13 +299,44 @@ draw_virus: # Draws a pill with color = $a2 at coordinates ($a0, $a1)
   sw $t9 256($t0)
   jr $ra
 
-clear_cell: # Clears a cell with coordinates ($a0, $a1)
+draw_cell: # Draws cell at ($a0, $a1) with color ($a2)
   jal2(set_t0)
-  lw $a2, true_black
   sw $a2 0($t0) # Clear cell
   sw $a2 4($t0)
   sw $a2 256($t0)
   sw $a2 260($t0)
+  jr $ra
+
+clear_cell: # Clears a cell with coordinates ($a0, $a1)
+  jal2(set_t0)
+  lw $a2 true_black
+  sw $a2 0($t0) # Clear cell
+  sw $a2 4($t0)
+  sw $a2 256($t0)
+  sw $a2 260($t0)
+  # Checks if any pills were on top of current cleared cell
+  addi $t0 $t0 -256
+  lw $a2 0($t0)
+  addi $t0 $t0 -256
+  beq $a2 0xff0000 drop_cell
+  beq $a2 0xffff00 drop_cell
+  beq $a2 0x0000ff drop_cell
+  addi $t0 $t0 512
+  jr $ra
+
+drop_cell:
+  addi $t2 $t0 0
+  addi $t7 $a1 -1
+  addi $a1 $a1 -1
+  drop_to:
+  addi $t2 $t2 512
+  lw $t9 512($t2)
+  addi $a1 $a1 1
+  beq $t9 0 drop_to
+  jal2(draw_cell)
+  addi $a1 $t7 0
+  jal2(clear_cell)
+  addi $a1 $a1 1
   jr $ra
 
 generate_pill: # Generates pill and store (color0, color1) in ($a2, $a3)
@@ -418,9 +450,9 @@ rotate:
   j game_loop
 
 check_collision:
+  lw $t0 ADDR_BOTTLE
   lb $t9 orientation
   lb $t8 direction
-  lw $t0 ADDR_BOTTLE
   beq $t8, 0, left_collision
   beq $t8, 1, right_collision
   beq $t8, 3, rotate_collision

@@ -32,7 +32,7 @@ ADDR_KBRD:
     beq %x %y beqal1
     j beqal2
     beqal1:
-      jal %z
+      jal2(%z)
     beqal2:
   .end_macro
 
@@ -40,7 +40,7 @@ ADDR_KBRD:
   bgt %x %y bgtal1
   j bgtal2
   bgtal1:
-    jal %z
+    jal2(%z)
   bgtal2:
   .end_macro
 
@@ -315,28 +315,45 @@ clear_cell: # Clears a cell with coordinates ($a0, $a1)
   sw $a2 256($t0)
   sw $a2 260($t0)
   # Checks if any pills were on top of current cleared cell
-  addi $t0 $t0 -256
-  lw $a2 0($t0)
-  addi $t0 $t0 -256
-  beq $a2 0xff0000 drop_cell
-  beq $a2 0xffff00 drop_cell
-  beq $a2 0x0000ff drop_cell
-  addi $t0 $t0 512
+  jal2(set_t0)
+  lw $a2 -256($t0)
+  addi $a1 $a1 -1
+  beqal($a2, 0xff0000, drop_cell)
+  beqal($a2, 0xffff00, drop_cell)
+  beqal($a2, 0x0000ff, drop_cell)
+  addi $a1 $a1 1
+  jal2(set_t0)
+  lw $a2 -4($t0)
+  addi $a0 $a0 -1
+  beqal($a2, 0xff0000, drop_cell)
+  beqal($a2, 0xffff00, drop_cell)
+  beqal($a2, 0x0000ff, drop_cell)
+  addi $a0 $a0 1
+  jal2(set_t0)
+  lw $a2 12($t0)
+  addi $a0 $a0 1
+  beqal($a2, 0xff0000, drop_cell)
+  beqal($a2, 0xffff00, drop_cell)
+  beqal($a2, 0x0000ff, drop_cell)
+  addi $a0, $a0, -1
+  jal2(set_t0)
   jr $ra
 
 drop_cell:
+  addi $t7 $a1 0
+  jal2(set_t0)
   addi $t3 $t0 0
-  addi $t7 $a1 -1
   addi $a1 $a1 -1
   drop_to:
-  addi $t3 $t3 512
   lw $t9 512($t3)
   addi $a1 $a1 1
+  addi $t3 $t3 512
   beq $t9 0 drop_to
   jal2(draw_cell)
+  beq $a1 $t7 drop_end #
   addi $a1 $t7 0
   jal2(clear_cell)
-  addi $a1 $a1 1
+  drop_end: #
   jr $ra
 
 generate_pill: # Generates pill and store (color0, color1) in ($a2, $a3)

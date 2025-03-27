@@ -334,7 +334,7 @@ draw_sprite:
   addi $t8 $t8 1
   beq $t8 $a0 sprite_y
   j sprite_x
-sprite_end:
+  sprite_end:
   jr $ra
 
 set_t0: # Set $t0 to the coordinates on the bitmap to draw
@@ -623,6 +623,11 @@ check_collision:
   mult $t8, $a0
   mflo $t8
   add $t0 $t0 $t8
+  lw $t8 -512($t0) #
+  sgt $t8 $t8 0
+  seq $t7 $t9 0
+  and $t7 $t7 $t8
+  beq $t7 1 game_loop #
   lw $t8 520($t0)
   sgt $t7, $t8, 0
   and $t7, $t9, $t7
@@ -704,11 +709,16 @@ clear_row:
   jal clear_cell
   pop()
   jal2(speed_up)
+  addi $t4 $a0 0
+  addi $t5 $a1 0
   li $v0 31
   li $a0 96
   li $a1 100
   li $a2 4
   li $a3 70
+  syscall
+  addi $a0 $t4 0
+  addi $a1 $t5 0
   syscall
   jr $ra
 

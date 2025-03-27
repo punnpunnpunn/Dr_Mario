@@ -30,6 +30,13 @@ ADDR_KBRD:
 
 ADDR_PAUSE: .word 0x100083E4
 
+LEVEL: 
+  .word 0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0xffffff, 0, 0xffffff, 0, 0, 0, 0,
+        0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0xffffff, 0, 0xffffff, 0, 0, 0, 0,
+        0xffffff, 0, 0, 0xffffff, 0xffffff, 0, 0xffffff, 0xffffff, 0, 0xffffff, 0, 0, 0, 0xffffff,
+        0xffffff, 0, 0, 0, 0xffffff, 0, 0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0,
+        0xffffff, 0xffffff, 0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0xffffff, 0xffffff, 0xffffff, 0, 0xffffff
+
 .macro beqal(%x %y %z)
     beq %x %y beqal1
     j beqal2
@@ -120,17 +127,46 @@ direction: .byte
     # $a2 = color 0 in functions
     # $a3 = color 1 in functions
     # $s0 = counter
+    # $s1 = speed
 main:
     # Initialize the game
+    jal clear_screen
+    jal choose_level
     jal draw_background
     jal draw_bottle
-    jal choose_level
-    li $t2 2
     jal generate_viruses
     li $s0 0
     j generate_pill
 
+clear_screen:
+  lw $t0 ADDR_DSPL
+  li $a0 64
+  li $a1 64
+  lw $a2 true_black
+  jal2(draw_rect)
+  jr $ra
+
 choose_level:
+  li $t0 0x10009B38
+  li $a0 1
+  li $a1 15
+  lw $a2 true_white
+  jal2(draw_rect)
+  li $t0 0x10009B68
+  jal2(draw_rect)
+  li $t0 0x10009B78
+  jal2(draw_rect)
+  li $t0 0x10009BC8
+  jal2(draw_rect)
+  li $t0 0x10009BA8
+  jal2(draw_rect)
+  li $t0 0x10009BB8
+  jal2(draw_rect)
+  li $t0 0x10009238
+  la $t1 LEVEL
+  li $a0 14
+  li $a1 5
+  jal2(draw_sprite)
   lw $t0, ADDR_KBRD               # $t0 = base address for keyboard
   lw $a0, 0($t0)                  # Load first word from keyboard
   beq $a0, 1, level_input         # If first word 1, key is pressed
@@ -140,16 +176,26 @@ choose_level:
     beq $a0 0x31 easy
     beq $a0 0x32 medium
     beq $a0 0x33 hard
+    beq $a0 0x71 exit
     j choose_level
   easy:
     li $s1 50
+    li $t2 1
     jr $ra
   medium:
     li $s1 25
+    li $t2 2
     jr $ra
   hard:
     li $s1 10
+    li $t2 4
     jr $ra
+
+speed_up:
+  blt $s1 11 speed_limit
+  addi $s1 $s1 -5
+  speed_limit:
+  jr $ra
   
 generate_viruses: # Generate $t2 virus of each color
   li $t3 0
@@ -267,6 +313,30 @@ draw_bottle:
   jal2(draw_rect)
   jr $ra
 
+draw_sprite:
+  li $t9 -1
+  li $t8 0
+  addi $t0 $t0 -256
+  sprite_y:
+  addi $t9 $t9 1
+  beq $t9 $a1 sprite_end
+  li $t7 4
+  mult $t8 $t7
+  mflo $t8
+  sub $t0 $t0 $t8
+  addi $t0 $t0 256
+  li $t8 0
+  sprite_x:
+  lw $t2 0($t1)
+  sw $t2 0($t0)
+  addi $t0 $t0 4
+  addi $t1 $t1 4
+  addi $t8 $t8 1
+  beq $t8 $a0 sprite_y
+  j sprite_x
+sprite_end:
+  jr $ra
+
 set_t0: # Set $t0 to the coordinates on the bitmap to draw
   lw $t0, ADDR_BOTTLE
   li $t9, 8
@@ -369,7 +439,7 @@ drop_cell:
 generate_pill: # Generates pill and store (color0, color1) in ($a2, $a3)
   lw $t0 ADDR_BOTTLE
   lw $t9 24($t0)
-  bne $t9 0 exit
+  bne $t9 0 retry
   lw $t9 32($t0)
   bne $t9 0 exit
   generate_color($a2)
@@ -379,6 +449,12 @@ generate_pill: # Generates pill and store (color0, color1) in ($a2, $a3)
   li $a1, 0
   jal update_coordinates
   jal draw_pill
+  li $v0 31 # Play sound effect
+  li $a0 84
+  li $a1 50
+  li $a2 4
+  li $a3 70
+  syscall
   j game_loop
 
 generate_virus:
@@ -627,6 +703,13 @@ clear_row:
   addi $a0 $a0 1
   jal clear_cell
   pop()
+  jal2(speed_up)
+  li $v0 31
+  li $a0 96
+  li $a1 100
+  li $a2 4
+  li $a3 70
+  syscall
   jr $ra
 
 clear_col:
@@ -640,6 +723,17 @@ clear_col:
   addi $a1 $a1 1
   jal clear_cell
   pop()
+  jal2(speed_up)
+  addi $t4 $a0 0
+  addi $t5 $a1 0
+  li $v0 31
+  li $a0 96
+  li $a1 100
+  li $a2 4
+  li $a3 70
+  syscall
+  addi $a0 $t4 0
+  addi $a1 $t5 0
   jr $ra
 
 update_coordinates:
@@ -670,6 +764,16 @@ pause:
   lw $t2, 4($t1)
   beq $t2, 0x70, game_loop
 
+retry:
+  lw $t1 ADDR_KBRD
+  lw $t2 0($t1)
+  beq $t2 1 retry_pressed
+  j retry
+  retry_pressed:
+    lw $t2 4($t1)
+    bne $t2 0x72 exit
+    j main
+  
 game_loop:
   lw $t1, ADDR_KBRD
   lw $t2, 0($t1)
@@ -691,6 +795,7 @@ game_loop:
     beq $t2, 0x64, move_right
     beq $t2, 0x73, move_down
     beq $t2, 0x77, rotate
+    beq $t2, 0x72, main
   
   j game_loop
     # 1a. Check if key has been pressed
@@ -703,6 +808,6 @@ game_loop:
     # j game_loop
 
 exit:
-  jal draw_bottle
+  jal2(clear_screen)
   li $v0, 10
   syscall

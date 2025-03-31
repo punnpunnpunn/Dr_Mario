@@ -97,10 +97,20 @@ DR_MARIO:
   sub $sp, $sp,4
   sw  $ra, 0($sp)	# push %reg
   .end_macro
+
+.macro push_reg(%reg)
+  sub $sp $sp 4
+  sw %reg 0($sp)
+  .end_macro
   
 .macro pop()
   lw  $ra, 0($sp)	# pop %reg
   add $sp, $sp,4
+  .end_macro
+
+.macro pop_reg(%reg)
+  lw %reg 0($sp)
+  add $sp $sp 4
   .end_macro
 
 .macro jal2(%f)
@@ -216,7 +226,7 @@ choose_level:
 
 speed_up:
   blt $s1 11 speed_limit
-  addi $s1 $s1 -5
+  addi $s1 $s1 -1
   speed_limit:
   jr $ra
   
@@ -724,22 +734,22 @@ check_combo:
   addi $t0, $t0, -448
   combo_x_loop:
   lw $t1 white # Color
-  li $t2 0 # Color counter
+  li $s3 0 # Color counter
   li $a0 0 # Inner loop counter
   addi $a1, $a1, 1
   addi $t0, $t0, 448
   combo_x:
     lw $t9 0($t0)
     seq $t1, $t9, $t1
-    add $t2, $t2, $t1
-    mult $t2, $t1
-    mflo $t2
+    add $s3, $s3, $t1
+    mult $s3, $t1
+    mflo $s3
     sne $t8, $t9, 0 #
-    mult $t8, $t2 #
-    mflo $t2 #
+    mult $t8, $s3 #
+    mflo $s3 #
     add $t1, $t9, $zero
-    beqal($t2, 3, clear_row)
-    bgtal($t2, 3, clear_cell)
+    beqal($s3, 3, clear_row)
+    bgtal($s3, 3, clear_cell)
     addi $a0, $a0, 1
     addi $t0, $t0, 8
     beq $a1, 16, check_combo_y #generate_pill
@@ -751,22 +761,22 @@ check_combo:
   addi $t0, $t0, 8184
   combo_y_loop:
   lw $t1 white # Color
-  li $t2 0 # Color counter
+  li $s3 0 # Color counter
   li $a1 0 # Inner loop counter
   addi $a0, $a0, 1
   addi $t0, $t0, -8184
   combo_y:
     lw $t9 0($t0)
     seq $t1, $t9, $t1
-    add $t2, $t2, $t1
-    mult $t2, $t1
-    mflo $t2
+    add $s3, $s3, $t1
+    mult $s3, $t1
+    mflo $s3
     sne $t8, $t9, 0 #
-    mult $t8, $t2 #
-    mflo $t2 #
+    mult $t8, $s3 #
+    mflo $s3 #
     add $t1, $t9, $zero
-    beqal($t2, 3, clear_col)
-    bgtal($t2, 3, clear_cell)
+    beqal($s3, 3, clear_col)
+    bgtal($s3, 3, clear_cell)
     addi $a1, $a1, 1
     addi $t0, $t0, 512
     beq $a0, 8, generate_pill
@@ -785,7 +795,7 @@ clear_row:
   jal clear_cell
   pop()
   jal2(speed_up)
-  addi $t4 $a0 0
+  addi $t6 $a0 0
   addi $t5 $a1 0
   li $v0 31
   li $a0 96
@@ -794,7 +804,7 @@ clear_row:
   li $a3 70
   syscall
   jal2(mario_hop)
-  addi $a0 $t4 0
+  addi $a0 $t6 0
   addi $a1 $t5 0
   #syscall
   jr $ra
@@ -811,7 +821,7 @@ clear_col:
   jal clear_cell
   pop()
   jal2(speed_up)
-  addi $t4 $a0 0
+  addi $t6 $a0 0
   addi $t5 $a1 0
   li $v0 31
   li $a0 96
@@ -819,8 +829,12 @@ clear_col:
   li $a2 4
   li $a3 70
   syscall
+  push_reg($t0)
+  push_reg($t1)
   jal2(mario_hop)
-  addi $a0 $t4 0
+  pop_reg($t1)
+  pop_reg($t0)
+  addi $a0 $t6 0
   addi $a1 $t5 0
   jr $ra
 

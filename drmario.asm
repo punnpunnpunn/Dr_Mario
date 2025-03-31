@@ -30,12 +30,33 @@ ADDR_KBRD:
 
 ADDR_PAUSE: .word 0x100083E4
 
+ADDR_DR: .word 0x1000AC10
+
 LEVEL: 
   .word 0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0xffffff, 0, 0xffffff, 0, 0, 0, 0,
         0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0xffffff, 0, 0xffffff, 0, 0, 0, 0,
         0xffffff, 0, 0, 0xffffff, 0xffffff, 0, 0xffffff, 0xffffff, 0, 0xffffff, 0, 0, 0, 0xffffff,
         0xffffff, 0, 0, 0, 0xffffff, 0, 0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0,
         0xffffff, 0xffffff, 0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0xffffff, 0xffffff, 0xffffff, 0, 0xffffff
+
+DR_MARIO:
+  .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x795548, 0, 0,
+        0, 0, 0, 0x795548, 0x795548, 0x795548, 0x795548, 0x9e9e9e, 0xffffff, 0x795548, 0, 0,
+        0, 0, 0x3f51b5, 0x3f51b5, 0x3f51b5, 0x3f51b5, 0x3f51b5, 0x9e9e9e, 0xffffff, 0, 0, 0,
+        0, 0, 0x795548, 0x795548, 0x795548, 0xffcc80, 0xffcc80, 0, 0xffcc80, 0, 0, 0,
+        0, 0x795548, 0xffcc80, 0x795548, 0xffcc80, 0xffcc80, 0xffcc80, 0, 0xffcc80, 0xffcc80, 0xffcc80, 0,
+        0, 0x795548, 0xffcc80, 0x795548, 0x795548, 0xffcc80, 0xffcc80, 0xffcc80, 0, 0xffcc80, 0xffcc80, 0xffcc80,
+        0, 0x795548, 0x795548, 0xffcc80, 0xffcc80, 0xffcc80, 0xffcc80, 0,0,0,0, 0,
+        0, 0, 0, 0xffcc80, 0xffcc80, 0xffcc80, 0xffcc80, 0xffcc80, 0xffcc80, 0xffcc80, 0, 0,
+        0, 0, 0xffffff, 0xffffff, 0x607d8b, 0xffffff, 0xf44336, 0xf44336, 0, 0, 0, 0,
+        0, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0x607d8b, 0xf44336, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0,
+        0xffffff, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0x607d8b, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0xffffff,
+        0x607d8b, 0x607d8b, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0x607d8b, 0x607d8b, 0xffffff, 0xffffff, 0x607d8b, 0x607d8b,
+        0x9e9e9e, 0x9e9e9e, 0x9e9e9e, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0x9e9e9e, 0x9e9e9e, 0x9e9e9e,
+        0x9e9e9e, 0x9e9e9e, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0xffffff, 0x9e9e9e, 0x9e9e9e,
+        0, 0, 0x3f51b5, 0x3f51b5, 0x3f51b5, 0, 0, 0x3f51b5, 0x3f51b5, 0x3f51b5, 0, 0,
+        0, 0x795548, 0x795548, 0x795548, 0, 0, 0, 0, 0x795548, 0x795548, 0x795548, 0, 
+        0x795548, 0x795548, 0x795548, 0x795548, 0, 0, 0, 0, 0x795548, 0x795548, 0x795548, 0x795548,
 
 .macro beqal(%x %y %z)
     beq %x %y beqal1
@@ -128,6 +149,7 @@ direction: .byte
     # $a3 = color 1 in functions
     # $s0 = counter
     # $s1 = speed
+    # $s2 = number of viruses of each color.
 main:
     # Initialize the game
     jal clear_screen
@@ -180,15 +202,15 @@ choose_level:
     j choose_level
   easy:
     li $s1 50
-    li $t2 1
+    li $s2 1
     jr $ra
   medium:
     li $s1 25
-    li $t2 2
+    li $s2 2
     jr $ra
   hard:
     li $s1 10
-    li $t2 4
+    li $s2 4
     jr $ra
 
 speed_up:
@@ -207,7 +229,7 @@ generate_viruses: # Generate $t2 virus of each color
   lw $a2 yellow
   jal2(generate_virus)
   addi $t3 $t3 1
-  bne $t3 $t2 generate_virus_loop
+  bne $t3 $s2 generate_virus_loop
   jr $ra
 
 draw_rect: # Draws rectangle starting at address $t0 with size (xshift, yshift) = ($a0, $a1) and color $a2
@@ -285,6 +307,23 @@ draw_background: # Draws the background
   li $a1 3
   lw $a2 true_black
   jal2(draw_rect)
+  lw $t0 ADDR_DR
+  addi $t0 $t0 -1032
+  li $a0, 16
+  li $a1 22
+  lw $a2 true_white
+  jal2(draw_rect)
+  lw $t0 ADDR_DR
+  addi $t0 $t0 -772
+  li $a0 14
+  li $a1, 20
+  lw $a2 true_black
+  jal2(draw_rect)
+  lw $t0 ADDR_DR
+  la $t1, DR_MARIO
+  li $a0, 12,
+  li $a1, 17
+  jal2(draw_sprite)
   jr $ra
 
 draw_bottle:
@@ -313,7 +352,7 @@ draw_bottle:
   jal2(draw_rect)
   jr $ra
 
-draw_sprite:
+draw_sprite: # Draws sprite starting at coordinates $t0, with width $a0, height $a1, color map $t1.
   li $t9 -1
   li $t8 0
   addi $t0 $t0 -256
@@ -717,9 +756,10 @@ clear_row:
   li $a2 4
   li $a3 70
   syscall
+  jal2(mario_hop)
   addi $a0 $t4 0
   addi $a1 $t5 0
-  syscall
+  #syscall
   jr $ra
 
 clear_col:
@@ -742,8 +782,57 @@ clear_col:
   li $a2 4
   li $a3 70
   syscall
+  jal2(mario_hop)
   addi $a0 $t4 0
   addi $a1 $t5 0
+  jr $ra
+
+mario_hop:
+  li $t4, 0
+  li $t3 -256
+  jump_up:
+  lw $t0 ADDR_DR
+  addi $t0 $t0 -772
+  li $a0 14
+  li $a1, 20
+  lw $a2 true_black
+  jal2(draw_rect)
+  lw $t0 ADDR_DR
+  add $t0, $t0, $t3
+  la $t1, DR_MARIO
+  li $a0, 12,
+  li $a1, 17
+  jal2(draw_sprite)
+  li $v0, 32
+  li $a0, 200
+  syscall
+  addi $t3 $t3 -256
+  addi $t4, $t4 1
+  beq $t4 3, jump_down_set_up
+  j jump_up
+  jump_down_set_up:
+  addi $t3 $t3 512
+  jump_down:
+  lw $t0 ADDR_DR
+  addi $t0 $t0 -772
+  li $a0 14
+  li $a1, 20
+  lw $a2 true_black
+  jal2(draw_rect)
+  lw $t0 ADDR_DR
+  add $t0, $t0, $t3
+  la $t1, DR_MARIO
+  li $a0, 12,
+  li $a1, 17
+  jal2(draw_sprite)
+  li $v0 32
+  li $a0 200
+  syscall
+  addi $t3 $t3 256
+  addi $t4, $t4 -1
+  beq $t4 0, jump_done
+  j jump_down
+  jump_done:
   jr $ra
 
 update_coordinates:
@@ -773,6 +862,8 @@ pause:
   jal2(draw_rect)
   lw $t2, 4($t1)
   beq $t2, 0x70, game_loop
+  beq $t2, 0x71, exit
+  j pause
 
 retry:
   lw $t1 ADDR_KBRD

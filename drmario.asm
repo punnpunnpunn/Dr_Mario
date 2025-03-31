@@ -32,6 +32,8 @@ ADDR_PAUSE: .word 0x100083E4
 
 ADDR_DR: .word 0x1000AC10
 
+ADDR_VIRUS: .word 0x1000ACC0
+
 LEVEL: 
   .word 0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0xffffff, 0, 0xffffff, 0, 0, 0, 0,
         0xffffff, 0, 0, 0xffffff, 0, 0, 0, 0xffffff, 0, 0xffffff, 0, 0, 0, 0,
@@ -107,12 +109,11 @@ DR_MARIO:
   pop()
   .end_macro
 
-.macro repeat(%j %n)
-  li $t3, 0
-  rep:
-  jal %j
-  addi $t3 $t3 1
-  bne $t3 %n rep
+.macro draw_rect_macro(%x, %y, %color)
+  li $a0 %x
+  li $a1 %y
+  li $a2 %color
+  jal2(draw_rect)
   .end_macro
 
 ##############################################################################
@@ -324,6 +325,42 @@ draw_background: # Draws the background
   li $a0, 12,
   li $a1, 17
   jal2(draw_sprite)
+  jal2(draw_virus_bg)
+  jr $ra
+
+draw_virus_bg:
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 -260
+  draw_rect_macro(16,16,0xffffff)
+  lw $t0 ADDR_VIRUS
+  draw_rect_macro(14, 14, 0)
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 260
+  draw_rect_macro(4,4,0xede8d0)
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 260
+  draw_rect_macro(2,2,0xff0000)
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 780
+  draw_rect_macro(2,2,0xff0000)
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 804
+  draw_rect_macro(4,4,0xede8d0)
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 804
+  draw_rect_macro(2,2,0xffff00)
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 1324
+  draw_rect_macro(2,2,0xffff00)
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 2060
+  draw_rect_macro(4,4,0xede8d0)
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 2060
+  draw_rect_macro(2,2,0x0000ff)
+  lw $t0 ADDR_VIRUS
+  addi $t0 $t0 2580
+  draw_rect_macro(2,2,0x0000ff)
   jr $ra
 
 draw_bottle:

@@ -211,15 +211,15 @@ choose_level:
     beq $a0 0x71 exit
     j choose_level
   easy:
-    li $s1 50
+    li $s1 300
     li $s2 1
     jr $ra
   medium:
-    li $s1 25
+    li $s1 250
     li $s2 2
     jr $ra
   hard:
-    li $s1 10
+    li $s1 100
     li $s2 4
     jr $ra
 
@@ -858,7 +858,7 @@ mario_hop:
   li $a1, 17
   jal2(draw_sprite)
   li $v0, 32
-  li $a0, 200
+  li $a0, 100
   syscall
   addi $t3 $t3 -256
   addi $t4, $t4 1
@@ -880,7 +880,7 @@ mario_hop:
   li $a1, 17
   jal2(draw_sprite)
   li $v0 32
-  li $a0 200
+  li $a0 100
   syscall
   addi $t3 $t3 256
   addi $t4, $t4 -1

@@ -153,7 +153,6 @@ direction: .byte
     # For simplicity, I am allocating some variables for specific uses. 
     # $t0 = the memory address of the display
     # $t1 = the memory address of the keyboard
-    # $t3 = loop condition for repeat
     # $a0 = x coordinates in functions
     # $a1 = y coordinates in functions
     # $a2 = color 0 in functions
@@ -803,7 +802,11 @@ clear_row:
   li $a2 4
   li $a3 70
   syscall
+  push_reg($t0)
+  push_reg($t1)
   jal2(mario_hop)
+  pop_reg($t1)
+  pop_reg($t0)
   addi $a0 $t6 0
   addi $a1 $t5 0
   #syscall
